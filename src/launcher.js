@@ -1,6 +1,6 @@
 'use strict';
 
-const { spawn } = require('child_process');
+const { spawn, execSync } = require('child_process');
 const net = require('net');
 const { JavaGateway, GatewayParameters } = require('./gateway');
 
@@ -20,6 +20,8 @@ const { JavaGateway, GatewayParameters } = require('./gateway');
  *                                                                   and rely only on port polling.
  * @param {number}   [options.timeout=30000]    - Max ms to wait for the server to be ready
  * @param {object}   [options.gatewayOptions]   - Extra options forwarded to GatewayParameters
+ * @param {boolean}  [options.killConflict=false] - If true, detect and kill any process already
+ *                                                  listening on the target port before launching.
  *
  * @returns {Promise<{ process: ChildProcess, gateway: JavaGateway, kill: Function }>}
  *
@@ -47,10 +49,15 @@ async function launchGateway(options = {}) {
     readyPattern = /GATEWAY_STARTED/,
     timeout = 30000,
     gatewayOptions = {},
+    killConflict = false,
   } = options;
 
   if (!classpath) throw new Error('launchGateway: options.classpath is required');
   if (!mainClass) throw new Error('launchGateway: options.mainClass is required');
+
+  if (killConflict) {
+    await _checkAndKillConflict(host, port);
+  }
 
   // Build the java command: java [jvmArgs] -cp <classpath> <mainClass> [args]
   const javaArgs = [...jvmArgs, '-cp', classpath, mainClass, ...args];
@@ -82,6 +89,105 @@ async function launchGateway(options = {}) {
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * If something is already listening on host:port, find its PID(s) and kill them,
+ * then wait for the port to become free.
+ */
+async function _checkAndKillConflict(host, port) {
+  const inUse = await _isPortInUse(host, port);
+  if (!inUse) return;
+
+  const pids = _getPidsOnPort(port);
+  if (pids.length === 0) {
+    throw new Error(
+      `launchGateway: port ${port} is already in use but no owning process could be found. ` +
+      `Free the port manually and retry.`
+    );
+  }
+
+  for (const pid of pids) {
+    try {
+      process.kill(pid, 'SIGTERM');
+    } catch (_) {
+      // process may have already exited
+    }
+  }
+
+  await _waitForPortFree(host, port, 5000);
+}
+
+/**
+ * Return true if something is already accepting connections on host:port.
+ */
+function _isPortInUse(host, port) {
+  return new Promise((resolve) => {
+    const sock = new net.Socket();
+    sock.setTimeout(500);
+    sock.on('connect', () => { sock.destroy(); resolve(true); });
+    sock.on('error',   () => { sock.destroy(); resolve(false); });
+    sock.on('timeout', () => { sock.destroy(); resolve(false); });
+    sock.connect(port, host);
+  });
+}
+
+/**
+ * Find the PID(s) of whatever is listening on the given port.
+ * Uses lsof on Linux/macOS and netstat on Windows.
+ * Returns an array of integer PIDs (may be empty if detection fails).
+ */
+function _getPidsOnPort(port) {
+  try {
+    if (process.platform === 'win32') {
+      // netstat -ano lists active connections; parse LISTENING lines for the port
+      const out = execSync(`netstat -ano`, { encoding: 'utf8', stdio: 'pipe' });
+      const pids = new Set();
+      for (const line of out.split('\n')) {
+        // Format: "  TCP  0.0.0.0:25333  0.0.0.0:0  LISTENING  1234"
+        if (!line.includes('LISTENING')) continue;
+        if (!line.includes(`:${port}`)) continue;
+        const parts = line.trim().split(/\s+/);
+        const pid = parseInt(parts[parts.length - 1], 10);
+        if (!isNaN(pid) && pid > 0) pids.add(pid);
+      }
+      return [...pids];
+    } else {
+      // lsof -ti :<port> prints one PID per line
+      const out = execSync(`lsof -ti :${port}`, { encoding: 'utf8', stdio: 'pipe' }).trim();
+      return out
+        .split('\n')
+        .map((s) => parseInt(s.trim(), 10))
+        .filter((n) => !isNaN(n) && n > 0);
+    }
+  } catch (_) {
+    // lsof/netstat not available, or returned non-zero (no matches)
+    return [];
+  }
+}
+
+/**
+ * Poll until nothing is listening on host:port, or reject after timeout ms.
+ */
+function _waitForPortFree(host, port, timeout) {
+  return new Promise((resolve, reject) => {
+    const deadline = Date.now() + timeout;
+    function check() {
+      if (Date.now() > deadline) {
+        reject(new Error(
+          `launchGateway: port ${port} was still occupied after ${timeout}ms`
+        ));
+        return;
+      }
+      const sock = new net.Socket();
+      sock.setTimeout(300);
+      sock.on('connect', () => { sock.destroy(); setTimeout(check, 200); });
+      sock.on('error',   () => { sock.destroy(); resolve(); });
+      sock.on('timeout', () => { sock.destroy(); resolve(); });
+      sock.connect(port, host);
+    }
+    check();
+  });
+}
 
 function _waitForReady(child, host, port, readyPattern, timeout) {
   return new Promise((resolve, reject) => {

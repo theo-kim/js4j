@@ -35,6 +35,9 @@ A Node.js implementation of [py4j](https://www.py4j.org/) — a bridge between J
     - [ProxyPool](#proxypool)
   - [launchGateway](#launchgateway)
   - [Errors](#errors)
+- [Known Limitations](#known-limitations)
+  - [Varargs methods](#varargs-methods)
+  - [Fields vs methods](#fields-vs-methods)
 - [TypeScript](#typescript)
 - [Credits](#credits)
 
@@ -643,6 +646,70 @@ try {
 
 ---
 
+## Known Limitations
+
+### Varargs methods
+
+Java compiles `T... args` varargs parameters to `T[]` in bytecode. When js4j forwards multiple bare JavaScript arguments, the Java reflection engine looks for a method with that exact number of parameters and fails with "method not found".
+
+**Rule: pack all varargs arguments into a Java array created with `gateway.newArray()`.**
+
+```js
+// Java signature: Paths.get(String first, String... more)
+
+// WRONG — Java looks for get(String, String, String), which doesn't exist
+const path = await Paths.get('/tmp', 'subdir', 'file.txt');
+
+// CORRECT — single-argument call (empty varargs), works fine
+const path = await Paths.get('/tmp/subdir/file.txt');
+
+// CORRECT — varargs passed as a String array
+const more = await gateway.newArray(gateway.jvm.java.lang.String, 2);
+await more.set(0, 'subdir');
+await more.set(1, 'file.txt');
+const path = await Paths.get('/tmp', more);
+```
+
+The same pattern applies to any varargs method:
+
+```js
+// Java signature: String.format(String format, Object... args)
+const fmtArgs = await gateway.newArray(gateway.jvm.java.lang.Object, 2);
+await fmtArgs.set(0, 'World');
+await fmtArgs.set(1, 42);
+const result = await gateway.jvm.java.lang.String.format('Hello %s, you are number %d', fmtArgs);
+```
+
+For simple cases it is often easier to avoid varargs entirely by building the value in JavaScript first:
+
+```js
+// Build the path string in JS rather than using multi-part Paths.get
+const path = await Paths.get(`${baseDir}/subdir/file.txt`);
+```
+
+### Fields vs methods
+
+Property access on a `JavaObject` or `JavaClass` is reserved for **method calls**. Directly reading or writing a public Java field with `obj.fieldName` or `obj.fieldName = value` will only affect the local JavaScript proxy object — it will not communicate with the JVM.
+
+Always use `getField` / `setField`:
+
+```js
+// WRONG — only sets a JS property, Java never sees it
+obj.count = 10;
+
+// CORRECT
+await gateway.setField(obj, 'count', 10);
+const count = await gateway.getField(obj, 'count');
+```
+
+This applies to static fields too:
+
+```js
+const pi = await gateway.getField(gateway.jvm.java.lang.Math, 'PI');
+```
+
+---
+
 ## TypeScript
 
 Full type definitions are included. No `@types/` package is needed.
@@ -698,6 +765,7 @@ await kill();
 | `readyPattern` | `RegExp \| string \| null` | `/GATEWAY_STARTED/` | Pattern matched against stdout to detect when the server is ready. Set to `null` to skip stdout checking and rely only on port polling. |
 | `timeout` | `number` | `30000` | Maximum milliseconds to wait for the server to become ready. |
 | `gatewayOptions` | `GatewayParametersOptions` | `{}` | Extra options forwarded to `GatewayParameters` (e.g. `authToken`). |
+| `killConflict` | `boolean` | `false` | If `true`, detect any process already listening on the target port and kill it before launching. Throws if the port cannot be freed within 5 seconds. |
 
 #### Return value
 

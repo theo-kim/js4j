@@ -401,6 +401,12 @@ export interface LaunchGatewayOptions {
   timeout?: number;
   /** Extra options forwarded to GatewayParameters. */
   gatewayOptions?: GatewayParametersOptions;
+  /**
+   * If true, detect any process already listening on the target port and send
+   * it SIGTERM before launching. An error is thrown if the port cannot be
+   * freed within 5 seconds. Default: false.
+   */
+  killConflict?: boolean;
 }
 
 export interface LaunchGatewayResult {
