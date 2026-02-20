@@ -1,6 +1,6 @@
 {
   "name": "js4j",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A Node.js implementation of py4j — bridge between JavaScript and Java via the Py4J gateway protocol",
   "main": "index.js",
   "types": "index.d.ts",
