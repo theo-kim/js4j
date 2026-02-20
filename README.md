@@ -35,6 +35,7 @@ A Node.js implementation of [py4j](https://www.py4j.org/) — a bridge between J
     - [ProxyPool](#proxypool)
   - [Errors](#errors)
 - [TypeScript](#typescript)
+- [Credits](#credits)
 
 ---
 
@@ -673,3 +674,11 @@ const items: any[] = await list.toArray();
 npm test              # unit + integration tests (requires Java gateway)
 npm run test:unit     # unit tests only (no Java required)
 ```
+
+## Credits
+
+Obviously, this module is a port of the project py4j (https://www.py4j.org/). Thank you to them for an awesome package.
+
+There is, additionally, another NPM package called node4j (https://www.npmjs.com/package/node4j) which I had been using, but seems to have some errors and limitations, which is why I had this one built. 
+
+Finally, I did not build this, it was largely build by Claude Code. I did some debugging, but I do want to make my laziness largely known.

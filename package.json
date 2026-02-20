@@ -11,8 +11,12 @@
     "test:comparison": "node tests/comparison/run_comparison.js",
     "test:all": "npm test && npm run test:comparison"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/theo-kim/js4j"
+  },
   "keywords": ["java", "bridge", "py4j", "jvm", "gateway"],
-  "author": "",
+  "author": "Theodore Kim",
   "license": "MIT",
   "dependencies": {},
   "devDependencies": {
