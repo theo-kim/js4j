@@ -40,6 +40,7 @@ const {
   Js4JAuthenticationError,
 } = require('./src/exceptions');
 const protocol = require('./src/protocol');
+const { launchGateway } = require('./src/launcher');
 
 module.exports = {
   // Main gateway classes
@@ -72,6 +73,9 @@ module.exports = {
   Js4JJavaError,
   Js4JNetworkError,
   Js4JAuthenticationError,
+
+  // Launcher
+  launchGateway,
 
   // Low-level protocol (for advanced use)
   protocol,

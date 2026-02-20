@@ -373,6 +373,62 @@ export declare class CallbackServer {
 }
 
 // ---------------------------------------------------------------------------
+// Launcher
+// ---------------------------------------------------------------------------
+
+import { ChildProcess } from 'child_process';
+
+export interface LaunchGatewayOptions {
+  /** Java classpath (e.g. '/path/to/py4j.jar:.') */
+  classpath: string;
+  /** Fully-qualified main class to launch (e.g. 'com.example.MyApp') */
+  mainClass: string;
+  /** Gateway host. Default: '127.0.0.1' */
+  host?: string;
+  /** Gateway port. Default: 25333 */
+  port?: number;
+  /** Extra JVM flags (e.g. ['-Xmx512m']). Default: [] */
+  jvmArgs?: string[];
+  /** Extra arguments passed to the main class. Default: [] */
+  args?: string[];
+  /**
+   * Pattern to match in process stdout that signals the server is ready.
+   * Set to null to skip stdout checking and rely only on port polling.
+   * Default: /GATEWAY_STARTED/
+   */
+  readyPattern?: RegExp | string | null;
+  /** Maximum milliseconds to wait for the server to become ready. Default: 30000 */
+  timeout?: number;
+  /** Extra options forwarded to GatewayParameters. */
+  gatewayOptions?: GatewayParametersOptions;
+}
+
+export interface LaunchGatewayResult {
+  /** The spawned Java child process. */
+  process: ChildProcess;
+  /** A connected JavaGateway instance. */
+  gateway: JavaGateway;
+  /**
+   * Shut down the gateway and kill the Java process.
+   * Equivalent to calling `gateway.shutdown()` then `process.kill()`.
+   */
+  kill: () => Promise<void>;
+}
+
+/**
+ * Spawn a Java GatewayServer process and connect a JavaGateway to it.
+ *
+ * @example
+ * const { gateway, kill } = await launchGateway({
+ *   classpath: '/usr/share/py4j/py4j.jar:java/build',
+ *   mainClass: 'com.example.MyApp',
+ * });
+ * const result = await gateway.entry_point.doSomething();
+ * await kill();
+ */
+export declare function launchGateway(options: LaunchGatewayOptions): Promise<LaunchGatewayResult>;
+
+// ---------------------------------------------------------------------------
 // Factory functions
 // ---------------------------------------------------------------------------
 

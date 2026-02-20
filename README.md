@@ -33,6 +33,7 @@ A Node.js implementation of [py4j](https://www.py4j.org/) — a bridge between J
     - [createJavaProxy](#createjavaproxy)
     - [CallbackServer](#callbackserver)
     - [ProxyPool](#proxypool)
+  - [launchGateway](#launchgateway)
   - [Errors](#errors)
 - [TypeScript](#typescript)
 - [Credits](#credits)
@@ -665,6 +666,46 @@ await gateway.connect();
 const list: JavaList = await gateway.entry_point.getList();
 const items: any[] = await list.toArray();
 ```
+
+---
+
+### launchGateway
+
+Spawn a Java process that runs a `GatewayServer` and connect a `JavaGateway` to it automatically. Useful when Node.js is responsible for starting the JVM rather than the other way around.
+
+```js
+const { launchGateway } = require('js4j');
+
+const { gateway, kill } = await launchGateway({
+  classpath: '/usr/share/py4j/py4j.jar:java/build',
+  mainClass: 'com.example.MyApp',
+});
+
+const result = await gateway.entry_point.doSomething();
+await kill();
+```
+
+#### Options
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `classpath` | `string` | *required* | Java classpath string (e.g. `'py4j.jar:.'`). |
+| `mainClass` | `string` | *required* | Fully-qualified main class to launch. |
+| `host` | `string` | `'127.0.0.1'` | Host to connect to after the process starts. |
+| `port` | `number` | `25333` | Port to connect to. |
+| `jvmArgs` | `string[]` | `[]` | Extra JVM flags (e.g. `['-Xmx512m', '-ea']`). |
+| `args` | `string[]` | `[]` | Arguments passed to the main class. |
+| `readyPattern` | `RegExp \| string \| null` | `/GATEWAY_STARTED/` | Pattern matched against stdout to detect when the server is ready. Set to `null` to skip stdout checking and rely only on port polling. |
+| `timeout` | `number` | `30000` | Maximum milliseconds to wait for the server to become ready. |
+| `gatewayOptions` | `GatewayParametersOptions` | `{}` | Extra options forwarded to `GatewayParameters` (e.g. `authToken`). |
+
+#### Return value
+
+| Property | Type | Description |
+|---|---|---|
+| `gateway` | `JavaGateway` | A connected `JavaGateway` instance. |
+| `process` | `ChildProcess` | The spawned Java child process. |
+| `kill` | `() => Promise<void>` | Shuts down the gateway and kills the Java process. |
 
 ---
 
