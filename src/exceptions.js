@@ -33,6 +33,21 @@ class Js4JJavaError extends Js4JError {
     this.javaException = javaException || null;
   }
 
+  /**
+   * Fetch the human-readable Java exception message by calling getMessage()
+   * on the Java Throwable object.  Falls back to the raw protocol payload
+   * (javaExceptionMessage) if the Java call fails or javaException is null.
+   * @returns {Promise<string>}
+   */
+  async getJavaMessage() {
+    if (!this.javaException) return this.javaExceptionMessage || this.message;
+    try {
+      return await this.javaException.getMessage();
+    } catch (_) {
+      return this.javaExceptionMessage || this.message;
+    }
+  }
+
   toString() {
     return `${this.name}: ${this.message}\n  Java exception payload: ${this.javaExceptionMessage}`;
   }
